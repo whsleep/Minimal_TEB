@@ -1,0 +1,2 @@
+# requirements.txt
+ir-sim>2.5.0
