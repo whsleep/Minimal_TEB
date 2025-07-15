@@ -1,2 +1,3 @@
 # requirements.txt
 ir-sim>2.5.0
+casadi==3.7.0
