@@ -90,12 +90,14 @@ class SIM_ENV:
             return self.robot_goal.squeeze()
         
         # 计算交点（临时目标点）
-        t = (self.lidar_r - 2.0) / distance
+        t = (self.lidar_r - 3.0) / distance
         temp_x = rx + t * (gx - rx)
         temp_y = ry + t * (gy - ry)
         
         # 保持原朝向或重新计算朝向（此处保持原朝向）
-        temp_theta = self.robot_goal[2]
+        # 计算朝向全局目标的角度
+        temp_theta = np.arctan2(gy - ry, gx - rx)
+
         
         return np.array([temp_x, temp_y, temp_theta])
     

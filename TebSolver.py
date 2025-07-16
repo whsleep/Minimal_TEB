@@ -10,7 +10,6 @@ class TebplanSolver:
                  vmax: float = 1.5,
                  wmax: float = 1.5,
                  vamax: float = 1.5,
-                 wamax: float = 1.5,
                  rmin: float = 0.5,
                  safe_dis: float = 1.2,
                  auto_hz: float = 10):        # 控制频率
@@ -20,7 +19,6 @@ class TebplanSolver:
         self.vmax     = vmax
         self.wmax     = wmax
         self.vamax    = vamax
-        self.wamax    = wamax
         self.rmin     = rmin
         self.safe_dis = safe_dis
         self.auto_hz  = auto_hz
@@ -58,8 +56,6 @@ class TebplanSolver:
 
         res = []
         res_va  = []
-        res_wa  = []
-
 
         for i in range(n+1):
             p0, p1   = pts[i][:2], pts[i+1][:2]
@@ -73,27 +69,20 @@ class TebplanSolver:
                 dists = [ca.norm_2(pts[i][:2] - o.T) for o in obs_now]
                 dmin  = ca.mmin(ca.vertcat(*dists))
                 res.append(ca.fmax(0, self.safe_dis - dmin))
-            # if i <= n-1:
-            #     # 计算 v_i, v_{i+1}, ω_i, ω_{i+1}
-            #     seg_i   = ca.norm_2(pts[i+1][:2] - pts[i][:2])
-            #     seg_ip1 = ca.norm_2(pts[i+2][:2] - pts[i+1][:2])
-            #     dt_i   = ΔT[i]
-            #     dt_ip1 = ΔT[i+1]
-            #     v_i   = seg_i   / (dt_i   + 1e-6)
-            #     v_ip1 = seg_ip1 / (dt_ip1 + 1e-6)
+            if i <= n-1:
+                # 计算 v_i, v_{i+1}, ω_i, ω_{i+1}
+                seg_i   = ca.norm_2(pts[i+1][:2] - pts[i][:2])
+                seg_ip1 = ca.norm_2(pts[i+2][:2] - pts[i+1][:2])
+                dt_i   = ΔT[i]
+                dt_ip1 = ΔT[i+1]
+                v_i   = seg_i   / (dt_i   + 1e-6)
+                v_ip1 = seg_ip1 / (dt_ip1 + 1e-6)
 
-            #     dth_i   = norm_angle(pts[i+1][2] - pts[i][2])
-            #     dth_ip1 = norm_angle(pts[i+2][2] - pts[i+1][2])
-            #     ω_i   = dth_i   / (dt_i   + 1e-6)
-            #     ω_ip1 = dth_ip1 / (dt_ip1 + 1e-6)
+                # 加速度
+                denom = 0.5 * (dt_i + dt_ip1) + 1e-6
+                va  = (v_ip1 - v_i) / denom
 
-            #     # 加速度
-            #     denom = 0.5 * (dt_i + dt_ip1) + 1e-6
-            #     va  = (v_ip1 - v_i) / denom
-            #     wa  = (ω_ip1 - ω_i) / denom
-
-            #     res_va.append(0.01*ca.fmax(0, ca.fabs(va) - self.vamax))
-            #     res_wa.append(0.01*ca.fmax(0, ca.fabs(wa) - self.wamax))
+                res_va.append(ca.fmax(0, ca.fabs(va) - self.vamax))
             
             v = seg / (dt + 1e-6)
             res.append(ca.fmax(0, ca.fabs(v) - self.vmax))
@@ -111,8 +100,8 @@ class TebplanSolver:
             res.append(10*ca.fmax(0, ca.fabs(r) - self.rmin))
 
 
-        # residuals = ca.vertcat(*res,*res_va,*res_wa)
-        residuals = ca.vertcat(*res)
+        residuals = ca.vertcat(*res,*res_va)
+        # residuals = ca.vertcat(*res)
         nlp = {'x': w, 'f': 0.5 * ca.dot(residuals, residuals)}
         opts = {'ipopt.print_level': 0, 'print_time':0,
                 'ipopt.warm_start_init_point': 'yes',
