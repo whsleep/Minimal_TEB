@@ -13,7 +13,7 @@ class SIM_ENV:
         self.robot_radius = 0.34
 
         # 雷达半径
-        self.lidar_r = 4.0
+        self.lidar_r = 2.0
         
         # 求解器
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
@@ -32,12 +32,13 @@ class SIM_ENV:
         # 获取障碍
         pointobstacles = self.env.get_obstacle_info_list()
         pointobstacles = [obs.center[:2].T for obs in pointobstacles]
+        pointobstacles = np.vstack(pointobstacles)
         pointobstacles = self.filter_obstacles_by_distance(robot_state.squeeze(), pointobstacles)
         
         # 计算临时目标点
         current_goal = self.compute_currentGoal(robot_state.squeeze())
 
-        traj, dt_seg = self.solver.solve(pointobstacles, robot_state.squeeze(), current_goal)
+        traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, pointobstacles)
         traj_xy = traj[:, :2]          # 只取前两列 (x, y)
         traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
 
@@ -86,11 +87,11 @@ class SIM_ENV:
         distance = np.sqrt((gx - rx)**2 + (gy - ry)**2)
         
         # 如果目标在圆内，直接返回目标点
-        if distance <= self.lidar_r-2.0:
+        if distance <= self.lidar_r:
             return self.robot_goal.squeeze()
         
         # 计算交点（临时目标点）
-        t = (self.lidar_r - 3.0) / distance
+        t = (self.lidar_r ) / distance
         temp_x = rx + t * (gx - rx)
         temp_y = ry + t * (gy - ry)
         
@@ -108,8 +109,7 @@ class SIM_ENV:
         # 计算每个障碍物到机器人的距离，并过滤
         filtered = []
         for obs in obstacles:
-            obs_pos = obs[0]  # 提取障碍物位置 (形状为 (2,) 的数组)
-            distance = np.linalg.norm(obs_pos - robot_pos)
+            distance = np.linalg.norm(obs - robot_pos)
             if distance <= self.lidar_r:
                 filtered.append(obs)
         

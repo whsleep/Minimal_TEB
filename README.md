@@ -10,5 +10,4 @@ python run.py
 
 # DEMO
 
-<video src="animation/animation.mp4" autoplay="true" controls="controls" width="800" height="600">
-</video>
+![](doc/animation.gif)
