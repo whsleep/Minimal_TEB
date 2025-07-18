@@ -2,34 +2,38 @@ import numpy as np
 from irsim.lib.handler.geometry_handler import GeometryFactory
 from irsim.env import EnvBase
 from TebSolver import TebplanSolver
+from irsim.lib.path_planners.a_star import AStarPlanner
 
 class SIM_ENV:
     def __init__(self, world_file="robot_world.yaml", render=False):
         # 初始化环境
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
+        # 环境参数
         self.robot_goal = self.env.get_robot_info(0).goal.squeeze()
-
-        # 机器人半径
         self.robot_radius = 0.34
-
-        # 雷达半径
         self.lidar_r = 2.0
         
-        # 求解器
+        # 全局规划器
+        # data = self.env.get_map()
+        # self.planner = AStarPlanner(data,data.resolution)
+        # self.global_path = self.planner.planning(np.array([2.0,8.0]),np.array([8.0,2.0]))
+
+        # 局部求解器具
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 
+        # 速度指令
         self.v = 0.0
         self.w = 0.0
         
     def step(self, lin_velocity=0.0, ang_velocity=0.0):
-        # 单步仿真
+        # 环境单步仿真
         self.env.step(action_id=0, action=np.array([[self.v], [self.w]]))
+        # 环境可视化
         if self.env.display:
             self.env.render()
 
-        # 机器人姿态
+        # 获取机器人姿态及环境信息
         robot_state = self.env.get_robot_state()
-        # 获取障碍
         pointobstacles = self.env.get_obstacle_info_list()
         pointobstacles = [obs.center[:2].T for obs in pointobstacles]
         pointobstacles = np.vstack(pointobstacles)
@@ -38,25 +42,25 @@ class SIM_ENV:
         # 计算临时目标点
         current_goal = self.compute_currentGoal(robot_state.squeeze())
 
+        # 求解局部最优轨迹
         traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, pointobstacles)
-        traj_xy = traj[:, :2]          # 只取前两列 (x, y)
-        traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
+        traj_xy = traj[:, :2]         
 
+        # 轨迹可视化
+        traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
         self.env.draw_trajectory(traj_list, 'r--', refresh=True)
 
+        # 计算速度指令作为下次仿真输入
         self.compute_v_omega(traj[0,:] ,traj[1,:], dt_seg[0])
 
 
-        # 获取是否抵达目标的状态位
-        goal = self.env.robot.arrive
-        # 获取是否碰撞标志位
-        collision = self.env.robot.collision
-
-
-        if goal:
+        # 是否抵达
+        if self.env.robot.arrive:
             print("Goal reached")
             return True
-        if collision:
+        
+        # 是否碰撞
+        if self.env.robot.collision:
             print("collision !!!")
             return True
         
@@ -102,7 +106,6 @@ class SIM_ENV:
         
         return np.array([temp_x, temp_y, temp_theta])
     
-    # def obstacle_filter(self, obstacles):
     def filter_obstacles_by_distance(self, robot_state, obstacles):
         robot_pos = robot_state[:2]  # 提取机器人位置 [x, y]
         

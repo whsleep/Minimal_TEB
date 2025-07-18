@@ -2,7 +2,7 @@ import casadi as ca
 import numpy as np
 
 class TebplanSolver:
-    """路径规划求解器（支持障碍约束自适应、轨迹点数量自动调整）"""
+    """局部规划求解器（支持障碍约束自适应、轨迹点数量自动调整）"""
     
     def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.90, 
                  v_max=1.0, omega_max=1.0, r_min=0.5, a_max=2.0, epsilon=1e-2,

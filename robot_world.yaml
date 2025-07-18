@@ -10,7 +10,6 @@ world:
 
 robot:
   - kinematics: {name: 'diff'} 
-    # shape: {name: 'rectangle', length: 0.6, width: 0.3, wheelbase: 3}
     shape: {name: 'circle', radius: 0.34}
     state: [2, 8, 1.57, 0] 
     goal: [8, 2, 0] 
