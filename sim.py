@@ -16,22 +16,21 @@ class SIM_ENV:
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
         # 环境参数
         self.robot_goal = self.env.get_robot_info(0).goal.squeeze()
-        self.shap = self.env.get_robot_info()
         self.lidar_r = 2.0
         
         # 全局规划器
         # data = self.env.get_map()
         # self.planner = AStarPlanner(data,data.resolution)
         # self.global_path = self.planner.planning(np.array([2.0,8.0]),np.array([8.0,2.0]))
-
+        
         # 局部求解器
-        self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
+        self.solver = TebplanSolver(self.robot.geometry, np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 
         # 速度指令
-        self.v = 0.0
-        self.w = 0.0
+        self.v = 0.2
+        self.w = 0.2
         
-    def step(self, lin_velocity=0.0, ang_velocity=0.0):
+    def step(self, lin_velocity=0.2, ang_velocity=0.0):
         # 环境单步仿真
         self.env.step(action_id=0, action=np.array([[self.v], [self.w]]))
         # 环境可视化
@@ -45,7 +44,8 @@ class SIM_ENV:
         
         # 绘制障碍
         for obs in obs_list:
-            self.env.draw_box(obs.vertex, refresh=True)
+            print(self.robot_footprint.calculate_distance(robot_state, obs))
+            self.env.draw_box(obs, refresh=True)
 
         # 计算临时目标点
         current_goal = self.compute_currentGoal(robot_state.squeeze())
@@ -149,6 +149,6 @@ class SIM_ENV:
                     R = np.array([[np.cos(rot), -np.sin(rot)], [np.sin(rot), np.cos(rot)]])
                     global_vertices = trans + R @ vertices
 
-                    obstacle_list.append(obs(None, None, global_vertices, 'Rpositive', 0))
+                    obstacle_list.append(global_vertices)
 
             return obstacle_list

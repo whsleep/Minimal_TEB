@@ -61,12 +61,7 @@ class TebplanSolver:
         base_n = int(dist_total / max_step_dist) - 1
         base_n = max(1, base_n)  # 至少1个中间点
         
-        # 4. 根据障碍数量调整：障碍越多，需要的点数越多
-        num_obstacles = len(self.obstacles)
-        obstacle_factor = 1.0 + 0.1 * num_obstacles  # 每个障碍增加50%点数
-        adjusted_n = int(base_n * obstacle_factor)
-        
-        return adjusted_n
+        return base_n
     
     def solve(self, x0=None, xf=None, obstacles=None):
         """

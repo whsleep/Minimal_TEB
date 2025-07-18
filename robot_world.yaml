@@ -28,8 +28,8 @@ robot:
 
 
     plot:
-      show_trajectory: True
-      show_goal: True
+      show_trail: true
+      show_goal: true
 
 obstacle:
   - number: 10
