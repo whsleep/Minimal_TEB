@@ -1,8 +1,14 @@
 import numpy as np
-from irsim.lib.handler.geometry_handler import GeometryFactory
 from irsim.env import EnvBase
 from TebSolver import TebplanSolver
 from irsim.lib.path_planners.a_star import AStarPlanner
+
+from collections import namedtuple
+import cv2
+from sklearn.cluster import DBSCAN
+
+
+obs = namedtuple('obstacle', 'center radius vertex cone_type velocity')
 
 class SIM_ENV:
     def __init__(self, world_file="robot_world.yaml", render=False):
@@ -10,7 +16,7 @@ class SIM_ENV:
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
         # 环境参数
         self.robot_goal = self.env.get_robot_info(0).goal.squeeze()
-        self.robot_radius = 0.34
+        self.shap = self.env.get_robot_info()
         self.lidar_r = 2.0
         
         # 全局规划器
@@ -18,7 +24,7 @@ class SIM_ENV:
         # self.planner = AStarPlanner(data,data.resolution)
         # self.global_path = self.planner.planning(np.array([2.0,8.0]),np.array([8.0,2.0]))
 
-        # 局部求解器具
+        # 局部求解器
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 
         # 速度指令
@@ -34,24 +40,26 @@ class SIM_ENV:
 
         # 获取机器人姿态及环境信息
         robot_state = self.env.get_robot_state()
-        pointobstacles = self.env.get_obstacle_info_list()
-        pointobstacles = [obs.center[:2].T for obs in pointobstacles]
-        pointobstacles = np.vstack(pointobstacles)
-        pointobstacles = self.filter_obstacles_by_distance(robot_state.squeeze(), pointobstacles)
+        scan_data = self.env.get_lidar_scan()
+        obs_list = self.scan_box(robot_state,scan_data)
         
+        # 绘制障碍
+        for obs in obs_list:
+            self.env.draw_box(obs.vertex, refresh=True)
+
         # 计算临时目标点
         current_goal = self.compute_currentGoal(robot_state.squeeze())
 
-        # 求解局部最优轨迹
-        traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, pointobstacles)
-        traj_xy = traj[:, :2]         
+        # # 求解局部最优轨迹
+        # traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, pointobstacles)
+        # traj_xy = traj[:, :2]         
 
-        # 轨迹可视化
-        traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
-        self.env.draw_trajectory(traj_list, 'r--', refresh=True)
+        # # 轨迹可视化
+        # traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
+        # self.env.draw_trajectory(traj_list, 'r--', refresh=True)
 
-        # 计算速度指令作为下次仿真输入
-        self.compute_v_omega(traj[0,:] ,traj[1,:], dt_seg[0])
+        # # 计算速度指令作为下次仿真输入
+        # self.compute_v_omega(traj[0,:] ,traj[1,:], dt_seg[0])
 
 
         # 是否抵达
@@ -69,16 +77,13 @@ class SIM_ENV:
     def compute_v_omega(self, p0, p1, dt):
         x0, y0, th0 = p0
         x1, y1, th1 = p1
-
         # 1) 线速度（带方向）
         dx = x1 - x0
         dy = y1 - y0
         v = (dx * np.cos(th0) + dy * np.sin(th0)) / dt  # 沿当前朝向的投影速度
-
         # 2) 角速度（带方向）
         dth = np.arctan2(np.sin(th1 - th0), np.cos(th1 - th0))  # 最短方向 [-π, π]
         w = dth / dt
-
         self.v = v 
         self.w = w
 
@@ -106,14 +111,44 @@ class SIM_ENV:
         
         return np.array([temp_x, temp_y, temp_theta])
     
-    def filter_obstacles_by_distance(self, robot_state, obstacles):
-        robot_pos = robot_state[:2]  # 提取机器人位置 [x, y]
-        
-        # 计算每个障碍物到机器人的距离，并过滤
-        filtered = []
-        for obs in obstacles:
-            distance = np.linalg.norm(obs - robot_pos)
-            if distance <= self.lidar_r:
-                filtered.append(obs)
-        
-        return filtered
+    def scan_box(self, state, scan_data):
+
+        ranges = np.array(scan_data['ranges'])
+        angles = np.linspace(scan_data['angle_min'], scan_data['angle_max'], len(ranges))
+
+        point_list = []
+        obstacle_list = []
+
+        for i in range(len(ranges)):
+            scan_range = ranges[i]
+            angle = angles[i]
+
+            if scan_range < ( scan_data['range_max'] - 0.01):
+                point = np.array([ [scan_range * np.cos(angle)], [scan_range * np.sin(angle)]  ])
+                point_list.append(point)
+
+        if len(point_list) < 4:
+            return obstacle_list
+
+        else:
+            point_array = np.hstack(point_list).T
+            labels = DBSCAN(eps=0.4, min_samples=4).fit_predict(point_array)
+
+            for label in np.unique(labels):
+                if label == -1:
+                    continue
+                else:
+                    point_array2 = point_array[labels == label]
+                    rect = cv2.minAreaRect(point_array2.astype(np.float32))
+                    box = cv2.boxPoints(rect)
+
+                    vertices = box.T
+
+                    trans = state[0:2]
+                    rot = state[2, 0]
+                    R = np.array([[np.cos(rot), -np.sin(rot)], [np.sin(rot), np.cos(rot)]])
+                    global_vertices = trans + R @ vertices
+
+                    obstacle_list.append(obs(None, None, global_vertices, 'Rpositive', 0))
+
+            return obstacle_list

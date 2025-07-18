@@ -10,24 +10,22 @@ world:
 
 robot:
   - kinematics: {name: 'diff'} 
-    shape: {name: 'circle', radius: 0.34}
-    state: [2, 8, 1.57, 0] 
+    shape: {name: 'rectangle', length: 0.4, width: 0.3 , wheelbase: 0}
+    state: [2, 8, 0] 
     goal: [8, 2, 0] 
     vel_min: [-1.5, -1.5]
     vel_max: [1.5, 1.5]
     goal_threshold: 0.1
 
-    # sensors:
-    #   - type: 'lidar2d'
-    #     range_min: 0
-    #     range_max: 5
-    #     angle_range: 6.28
-    #     number: 36
-    #     noise: True
-    #     std: 0.02
-    #     angle_std: 0.1
-    #     offset: [ 0.0, 0, 0 ]
-    #     alpha: 0.1
+    sensors: 
+      - type: 'lidar2d'
+        range_min: 0
+        range_max: 5
+        angle_range: 3.1415926
+        number: 100
+        noise: False
+        alpha: 0.3
+
 
     plot:
       show_trajectory: True
