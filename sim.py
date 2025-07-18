@@ -10,15 +10,14 @@ class SIM_ENV:
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
         # 环境参数
         self.robot_goal = self.env.get_robot_info(0).goal.squeeze()
-        self.robot_radius = 0.34
-        self.lidar_r = 2.0
+        self.lidar_r = 1.5
         
         # 全局规划器
         # data = self.env.get_map()
         # self.planner = AStarPlanner(data,data.resolution)
         # self.global_path = self.planner.planning(np.array([2.0,8.0]),np.array([8.0,2.0]))
 
-        # 局部求解器具
+        # 局部求解器
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 
         # 速度指令
