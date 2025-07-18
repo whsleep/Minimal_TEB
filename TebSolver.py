@@ -4,9 +4,9 @@ import numpy as np
 class TebplanSolver:
     """局部规划求解器（支持障碍约束自适应、轨迹点数量自动调整）"""
     
-    def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.90, 
+    def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.60, 
                  v_max=1.0, omega_max=1.0, r_min=0.5, a_max=2.0, epsilon=1e-2,
-                 w_p=1.0, w_t=0.5, w_kin=2.0, w_r=2.0, T_min=0.05, T_max=0.3):
+                 w_p=0.5, w_t=1.0, w_kin=2.0, w_r=2.0, T_min=0.05, T_max=0.2):
         """
         初始化路径规划求解器
         
@@ -59,7 +59,7 @@ class TebplanSolver:
         
         # 3. 基础点数：总距离 / 每步最大距离（减1是因为总点数为n+2）
         base_n = int(dist_total / max_step_dist) - 1
-        base_n = max(1, base_n)  # 至少1个中间点
+        base_n = max(2, base_n)  # 至少2个中间点
         
         return base_n
     

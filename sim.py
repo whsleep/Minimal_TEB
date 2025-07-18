@@ -3,12 +3,9 @@ from irsim.env import EnvBase
 from TebSolver import TebplanSolver
 from irsim.lib.path_planners.a_star import AStarPlanner
 
-from collections import namedtuple
 import cv2
 from sklearn.cluster import DBSCAN
 
-
-obs = namedtuple('obstacle', 'center radius vertex cone_type velocity')
 
 class SIM_ENV:
     def __init__(self, world_file="robot_world.yaml", render=False):
@@ -24,13 +21,13 @@ class SIM_ENV:
         # self.global_path = self.planner.planning(np.array([2.0,8.0]),np.array([8.0,2.0]))
         
         # 局部求解器
-        self.solver = TebplanSolver(self.robot.geometry, np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
+        self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 
         # 速度指令
-        self.v = 0.2
-        self.w = 0.2
+        self.v = 0.0
+        self.w = 0.0
         
-    def step(self, lin_velocity=0.2, ang_velocity=0.0):
+    def step(self, lin_velocity=0.0, ang_velocity=0.0):
         # 环境单步仿真
         self.env.step(action_id=0, action=np.array([[self.v], [self.w]]))
         # 环境可视化
@@ -40,26 +37,26 @@ class SIM_ENV:
         # 获取机器人姿态及环境信息
         robot_state = self.env.get_robot_state()
         scan_data = self.env.get_lidar_scan()
-        obs_list = self.scan_box(robot_state,scan_data)
+        obs_list, center_list = self.scan_box(robot_state,scan_data)
         
         # 绘制障碍
         for obs in obs_list:
-            print(self.robot_footprint.calculate_distance(robot_state, obs))
-            self.env.draw_box(obs, refresh=True)
+            self.env.draw_box(obs, refresh=True, color= "-y")
 
         # 计算临时目标点
         current_goal = self.compute_currentGoal(robot_state.squeeze())
 
-        # # 求解局部最优轨迹
-        # traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, pointobstacles)
-        # traj_xy = traj[:, :2]         
+        # 求解局部最优轨迹
 
-        # # 轨迹可视化
-        # traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
-        # self.env.draw_trajectory(traj_list, 'r--', refresh=True)
+        traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, center_list)
+        traj_xy = traj[:, :2]         
 
-        # # 计算速度指令作为下次仿真输入
-        # self.compute_v_omega(traj[0,:] ,traj[1,:], dt_seg[0])
+        # 轨迹可视化
+        traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
+        self.env.draw_trajectory(traj_list, 'r--', refresh=True)
+
+        # 计算速度指令作为下次仿真输入
+        self.compute_v_omega(traj[0,:] ,traj[1,:], dt_seg[0])
 
 
         # 是否抵达
@@ -118,6 +115,7 @@ class SIM_ENV:
 
         point_list = []
         obstacle_list = []
+        center_list = []
 
         for i in range(len(ranges)):
             scan_range = ranges[i]
@@ -128,11 +126,11 @@ class SIM_ENV:
                 point_list.append(point)
 
         if len(point_list) < 4:
-            return obstacle_list
+            return obstacle_list, center_list
 
         else:
             point_array = np.hstack(point_list).T
-            labels = DBSCAN(eps=0.4, min_samples=4).fit_predict(point_array)
+            labels = DBSCAN(eps=0.2, min_samples=2).fit_predict(point_array)
 
             for label in np.unique(labels):
                 if label == -1:
@@ -141,6 +139,7 @@ class SIM_ENV:
                     point_array2 = point_array[labels == label]
                     rect = cv2.minAreaRect(point_array2.astype(np.float32))
                     box = cv2.boxPoints(rect)
+                    center_local = np.array(rect[0]).reshape(2, 1)
 
                     vertices = box.T
 
@@ -148,7 +147,9 @@ class SIM_ENV:
                     rot = state[2, 0]
                     R = np.array([[np.cos(rot), -np.sin(rot)], [np.sin(rot), np.cos(rot)]])
                     global_vertices = trans + R @ vertices
+                    center_global = trans + R @ center_local
 
                     obstacle_list.append(global_vertices)
+                    center_list.append(center_global)
 
-            return obstacle_list
+            return obstacle_list, center_list

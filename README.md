@@ -18,4 +18,4 @@ python run.py
 
 # DEMO
 
-![](picture/animation.gif)
+![](animation/animation.gif)

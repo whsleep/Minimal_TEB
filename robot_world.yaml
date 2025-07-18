@@ -20,7 +20,7 @@ robot:
     sensors: 
       - type: 'lidar2d'
         range_min: 0
-        range_max: 5
+        range_max: 3
         angle_range: 3.1415926
         number: 100
         noise: False
@@ -32,7 +32,7 @@ robot:
       show_goal: true
 
 obstacle:
-  - number: 10
+  - number: 15
     kinematics: {name: 'omni'}
     distribution: {name: 'random', range_low: [1, 1, -3.14], range_high: [9, 9, 3.14]}
     behavior: {name: 'rvo', wander: True, range_low: [1, 1, -3.14], range_high: [9, 9, 3.14], vxmax: 0.5, vymax: 0.5, factor: 1.0}
