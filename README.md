@@ -18,4 +18,6 @@ python run.py
 
 # DEMO
 
-![](animation/animation.gif)
+|<img  src="pictures/10obs.gif" width="400" />|<img  src="pictures/20obs.gif" width="400" />|
+|--|--|
+|<img  src="pictures/30obs.gif" width="400" />|<img  src="pictures/40obs.gif" width="400" />|

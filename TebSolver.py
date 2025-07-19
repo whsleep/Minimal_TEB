@@ -4,9 +4,9 @@ import numpy as np
 class TebplanSolver:
     """局部规划求解器（支持障碍约束自适应、轨迹点数量自动调整）"""
     
-    def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.60, 
+    def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.80, 
                  v_max=1.0, omega_max=1.0, r_min=0.5, a_max=2.0, epsilon=1e-2,
-                 w_p=0.5, w_t=1.0, w_kin=2.0, w_r=2.0, T_min=0.05, T_max=0.2):
+                 w_p=0.5, w_t=1.0, w_kin=4.0, w_r=4.0, w_obs=10.0, T_min=0.05, T_max=0.2):
         """
         初始化路径规划求解器
         
@@ -30,6 +30,7 @@ class TebplanSolver:
         self.w_t = w_t
         self.w_kin = w_kin
         self.w_r = w_r
+        self.w_obs = w_obs
         self.T_min = T_min
         self.T_max = T_max
         
@@ -131,7 +132,8 @@ class TebplanSolver:
                     # 计算轨迹点到障碍物的距离
                     dist = ca.sqrt((x[i] - ox)**2 + (y[i] - oy)** 2)
                     # 约束：距离 >= 安全距离（即安全距离 - 距离 <= 0）
-                    g_ineq.append(self.safe_distance - dist)
+                    # g_ineq.append(self.safe_distance - dist)
+                    f += self.w_obs*ca.fmax(0, self.safe_distance - dist)**2
         
         # 3. 运动学约束（速度、角速度、加速度、转弯半径）
         for i in range(self.n + 1):

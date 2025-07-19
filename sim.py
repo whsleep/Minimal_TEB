@@ -12,8 +12,8 @@ class SIM_ENV:
         # 初始化环境
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
         # 环境参数
-        self.robot_goal = self.env.get_robot_info(0).goal.squeeze()
-        self.lidar_r = 2.0
+        self.robot_goal = self.env.get_robot_info(0).goal
+        self.lidar_r = 1.5
         
         # 全局规划器
         # data = self.env.get_map()
@@ -26,6 +26,15 @@ class SIM_ENV:
         # 速度指令
         self.v = 0.0
         self.w = 0.0
+
+        # 绘制全局轨迹
+        start = self.env.get_robot_state()    
+        # 生成直线轨迹：在起点与目标点之间均匀插值
+        num_points = 50                   # 轨迹点数，可随意调
+        t = np.linspace(0, 1, num_points)  # 0 -> 1 的参数
+        traj = [start[:2] + ti * (self.robot_goal[:2] - start[:2]) for ti in t]   # list，每个元素为 2×1 向量
+
+        self.env.draw_trajectory(traj=traj,traj_type="--y")
         
     def step(self, lin_velocity=0.0, ang_velocity=0.0):
         # 环境单步仿真
@@ -41,19 +50,19 @@ class SIM_ENV:
         
         # 绘制障碍
         for obs in obs_list:
-            self.env.draw_box(obs, refresh=True, color= "-y")
+            self.env.draw_box(obs, refresh=True, color= "-b")
 
         # 计算临时目标点
-        current_goal = self.compute_currentGoal(robot_state.squeeze())
+        current_goal = self.compute_currentGoal(robot_state)
+        self.env.draw_points(current_goal[:2],c="r",refresh=True)
 
         # 求解局部最优轨迹
-
-        traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal, center_list)
+        traj, dt_seg = self.solver.solve(robot_state.squeeze(), current_goal.squeeze(), center_list)
         traj_xy = traj[:, :2]         
 
         # 轨迹可视化
         traj_list = [np.array([[xy[0]], [xy[1]]]) for xy in traj_xy]
-        self.env.draw_trajectory(traj_list, 'r--', refresh=True)
+        self.env.draw_trajectory(traj_list, 'g--', refresh=True)
 
         # 计算速度指令作为下次仿真输入
         self.compute_v_omega(traj[0,:] ,traj[1,:], dt_seg[0])
@@ -94,7 +103,7 @@ class SIM_ENV:
         
         # 如果目标在圆内，直接返回目标点
         if distance <= self.lidar_r:
-            return self.robot_goal.squeeze()
+            return self.robot_goal
         
         # 计算交点（临时目标点）
         t = (self.lidar_r ) / distance
@@ -121,7 +130,7 @@ class SIM_ENV:
             scan_range = ranges[i]
             angle = angles[i]
 
-            if scan_range < ( scan_data['range_max'] - 0.01):
+            if scan_range < ( scan_data['range_max'] - 0.1):
                 point = np.array([ [scan_range * np.cos(angle)], [scan_range * np.sin(angle)]  ])
                 point_list.append(point)
 
