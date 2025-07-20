@@ -13,11 +13,7 @@ class SIM_ENV:
         # 初始化环境
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
         # 环境参数
-<<<<<<< HEAD
-        self.robot_goal = self.env.get_robot_info(0).goal.squeeze()
-=======
         self.robot_goal = self.env.get_robot_info(0).goal
->>>>>>> 2be79606113fb315a44c813b90685a29d8300f7d
         self.lidar_r = 1.5
         
         # 全局规划器
@@ -27,15 +23,12 @@ class SIM_ENV:
         end = self.robot_goal.T
         end = end[0, :2].squeeze()
 
-<<<<<<< HEAD
-=======
         data = self.env.get_map()
         self.planner = AStarPlanner(data,data.resolution)
         self.global_path = self.planner.planning(start,end, show_animation=False)
         self.global_path = self.global_path[:, ::-1].T
         self.path_index = 0
         
->>>>>>> 2be79606113fb315a44c813b90685a29d8300f7d
         # 局部求解器
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 

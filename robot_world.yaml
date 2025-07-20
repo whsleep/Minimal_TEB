@@ -10,15 +10,9 @@ world:
 
 robot:
   - kinematics: {name: 'diff'} 
-<<<<<<< HEAD
-    shape: {name: 'circle', radius: 0.3}
-    state: [2, 8, 1.57, 0] 
-    goal: [8, 2, 0] 
-=======
     shape: {name: 'rectangle', length: 0.4, width: 0.3 , wheelbase: 0}
     state: [1.5, 8.5, 0] 
     goal: [8.5, 1.5, 0] 
->>>>>>> 2be79606113fb315a44c813b90685a29d8300f7d
     vel_min: [-1.5, -1.5]
     vel_max: [1.5, 1.5]
     goal_threshold: 0.1
@@ -36,13 +30,8 @@ robot:
 
 
     plot:
-<<<<<<< HEAD
-      show_trail: True
-      show_goal: True
-=======
       show_trail: true
       show_goal: true
->>>>>>> 2be79606113fb315a44c813b90685a29d8300f7d
 
 obstacle:
   - number: 20
