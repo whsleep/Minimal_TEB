@@ -9,6 +9,7 @@ from sklearn.cluster import DBSCAN
 
 class SIM_ENV:
     def __init__(self, world_file="robot_world.yaml", render=False):
+
         # 初始化环境
         self.env = EnvBase(world_file, display=render, disable_all_plot=not render,save_ani = True)
         # 环境参数
@@ -16,9 +17,17 @@ class SIM_ENV:
         self.lidar_r = 1.5
         
         # 全局规划器
-        # data = self.env.get_map()
-        # self.planner = AStarPlanner(data,data.resolution)
-        # self.global_path = self.planner.planning(np.array([2.0,8.0]),np.array([8.0,2.0]))
+        # 获得起点终点
+        start = self.env.get_robot_state().T
+        start = start[0, :2].squeeze()
+        end = self.robot_goal.T
+        end = end[0, :2].squeeze()
+
+        data = self.env.get_map()
+        self.planner = AStarPlanner(data,data.resolution)
+        self.global_path = self.planner.planning(start,end, show_animation=False)
+        self.global_path = self.global_path[:, ::-1].T
+        self.path_index = 0
         
         # 局部求解器
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
@@ -27,14 +36,7 @@ class SIM_ENV:
         self.v = 0.0
         self.w = 0.0
 
-        # 绘制全局轨迹
-        start = self.env.get_robot_state()    
-        # 生成直线轨迹：在起点与目标点之间均匀插值
-        num_points = 50                   # 轨迹点数，可随意调
-        t = np.linspace(0, 1, num_points)  # 0 -> 1 的参数
-        traj = [start[:2] + ti * (self.robot_goal[:2] - start[:2]) for ti in t]   # list，每个元素为 2×1 向量
-
-        self.env.draw_trajectory(traj=traj,traj_type="--y")
+        self.env.draw_trajectory(traj=self.global_path.T,traj_type="--y")
         
     def step(self, lin_velocity=0.0, ang_velocity=0.0):
         # 环境单步仿真
@@ -94,28 +96,42 @@ class SIM_ENV:
         self.w = w
 
     def compute_currentGoal(self, robot_state):
-        # 提取位置坐标
         rx, ry = robot_state[0], robot_state[1]
-        gx, gy = self.robot_goal[0], self.robot_goal[1]
-        
-        # 计算机器人到目标的距离
-        distance = np.sqrt((gx - rx)**2 + (gy - ry)**2)
-        
-        # 如果目标在圆内，直接返回目标点
-        if distance <= self.lidar_r:
-            return self.robot_goal
-        
-        # 计算交点（临时目标点）
-        t = (self.lidar_r ) / distance
-        temp_x = rx + t * (gx - rx)
-        temp_y = ry + t * (gy - ry)
-        
-        # 保持原朝向或重新计算朝向（此处保持原朝向）
-        # 计算朝向全局目标的角度
-        temp_theta = np.arctan2(gy - ry, gx - rx)
+        path = self.global_path 
+        goal_index = 0
 
+        # 1. 计算所有点到机器人的距离
+        robot_xy = robot_state.reshape(-1)  # 将(2,1)重塑为(2,)
         
-        return np.array([temp_x, temp_y, temp_theta])
+        # 计算路径上每个点到机器人位置的距离
+        dists = np.linalg.norm(path - robot_xy[:2], axis=1)
+
+        # 2. 更新 path_index 为最近点索引（防止倒退）
+        nearest_idx = int(np.argmin(dists))
+        self.path_index = max(self.path_index, nearest_idx)
+
+        # 3. 从 path_index 开始找第一个距离 > lidar_r 的点
+        found = False
+        for i in range(self.path_index, len(path)):
+            if dists[i] > self.lidar_r:
+                goal_index = i
+                found = True
+                break
+        
+        # 4. 确定最终目标点
+        if not found:
+            # 如果没找到，使用全局目标点
+            goal_index = len(path) - 1
+            target_x, target_y = path[goal_index]
+            target_theta = self.robot_goal[-1]
+        else:
+            # 如果找到，使用路径上的点
+            target_x, target_y = path[goal_index]
+            target_theta = np.arctan2(target_y - ry, target_x - rx)
+
+        # 返回目标点和朝向
+        return np.array([[target_x], [target_y], target_theta])
+
     
     def scan_box(self, state, scan_data):
 
