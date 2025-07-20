@@ -18,4 +18,9 @@ python run.py
 
 # DEMO
 
+<<<<<<< HEAD
 ![](animation/animation.gif)
+=======
+|<img  src="pictures/10obs.gif" width="400" />|<img  src="pictures/20obs.gif" width="400" />|
+|--|--|
+>>>>>>> 2be79606113fb315a44c813b90685a29d8300f7d
