@@ -1,6 +1,7 @@
 import numpy as np
 from irsim.env import EnvBase
 from TebSolver import TebplanSolver
+from local_wrapper import LocalGoalWrapper
 from irsim.lib.path_planners.a_star import AStarPlanner
 
 import cv2
@@ -28,7 +29,10 @@ class SIM_ENV:
         self.global_path = self.planner.planning(start,end, show_animation=False)
         self.global_path = self.global_path[:, ::-1].T
         self.path_index = 0
-        
+
+        # 局部目标包裹器
+        self.local_wrapper = LocalGoalWrapper(alpha=0.5, beta=0.5)
+
         # 局部求解器
         self.solver = TebplanSolver(np.array([0.0,0.0,0.0]),np.array([0.0,0.0,0.0]),np.array([0.0,0.0]) )
 
@@ -55,7 +59,13 @@ class SIM_ENV:
             self.env.draw_box(obs, refresh=True, color= "-b")
 
         # 计算临时目标点
-        current_goal = self.compute_currentGoal(robot_state)
+        current_goal, state = self.compute_currentGoal(robot_state)
+        # if current_goal not in self.robot_goal:
+        #     current_goal = self.local_wrapper.generate_local_goal(robot_state, current_goal, scan_data)
+        #     if state:
+        #         current_goal[-1] = self.robot_goal[-1]  # 如果没有找到局部目标，使用全局目标的朝向
+
+
         self.env.draw_points(current_goal[:2],c="r",refresh=True)
 
         # 求解局部最优轨迹
@@ -130,7 +140,7 @@ class SIM_ENV:
             target_theta = np.arctan2(target_y - ry, target_x - rx)
 
         # 返回目标点和朝向
-        return np.array([[target_x], [target_y], target_theta])
+        return np.array([[target_x], [target_y], target_theta]), not found
 
     
     def scan_box(self, state, scan_data):

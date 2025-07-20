@@ -18,5 +18,5 @@ python run.py
 
 # DEMO
 
-|<img  src="pictures/10obs.gif" width="400" />|<img  src="pictures/20obs.gif" width="400" />|
+|<img  src="pictures/50obs.gif" width="400" />|<img  src="pictures/80obs.gif" width="400" />|
 |--|--|
