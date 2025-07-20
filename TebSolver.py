@@ -4,15 +4,9 @@ import numpy as np
 class TebplanSolver:
     """局部规划求解器（支持障碍约束自适应、轨迹点数量自动调整）"""
     
-<<<<<<< HEAD
-    def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.70, 
-                 v_max=1.0, omega_max=1.0, r_min=0.5, a_max=2.0, epsilon=1e-2,
-                 w_p=0.5, w_t=1.5, w_kin=4.0, w_r=4.0, T_min=0.1, T_max=0.2):
-=======
     def __init__(self, x0, xf, obstacles, n=None, safe_distance=0.80, 
                  v_max=1.0, omega_max=1.0, r_min=0.5, a_max=2.0, epsilon=1e-2,
                  w_p=0.5, w_t=1.0, w_kin=4.0, w_r=4.0, w_obs=10.0, T_min=0.05, T_max=0.2):
->>>>>>> 2be79606113fb315a44c813b90685a29d8300f7d
         """
         初始化路径规划求解器
         
