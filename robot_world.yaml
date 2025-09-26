@@ -22,7 +22,7 @@ robot:
         range_min: 0
         range_max: 4
         angle_range: 6.28
-        number: 360
+        number: 100
         noise: True
         std: 0.02
         angle_std: 0.05
