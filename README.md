@@ -75,10 +75,6 @@ python run.py
 
 <img  src="pictures/20obs.gif" width="400" />
 
-# Tutorial
-
-Here is a short Chinese tutorial [Trajectory Optimization](https://www.zhihu.com/column/c_1940366621676905723)
-
 # References
 
 - [RDA Planner](https://github.com/hanruihua/RDA-planner)

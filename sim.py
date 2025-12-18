@@ -48,7 +48,7 @@ class SIM_ENV:
         # 获取机器人姿态及环境信息
         robot_state = self.env.get_robot_state()
         scan_data = self.env.get_lidar_scan()
-        obs_list, center_list = self.scan_box(robot_state,scan_data)
+        obs_list, center_list = self.scan_ellipse(robot_state,scan_data)
         
         # 绘制障碍
         for obs in obs_list:
@@ -133,48 +133,83 @@ class SIM_ENV:
         return np.array([[target_x], [target_y], target_theta])
 
     
-    def scan_box(self, state, scan_data):
+    def scan_ellipse(self, state, scan_data):
+            ranges = np.array(scan_data['ranges'])
+            angles = np.linspace(scan_data['angle_min'], scan_data['angle_max'], len(ranges))
 
-        ranges = np.array(scan_data['ranges'])
-        angles = np.linspace(scan_data['angle_min'], scan_data['angle_max'], len(ranges))
+            point_list = []
+            obstacle_list = []
+            center_list = []  # 在这里，center_list 将存储椭圆的完整参数 [cx, cy, a, b, theta]
 
-        point_list = []
-        obstacle_list = []
-        center_list = []
+            for i in range(len(ranges)):
+                scan_range = ranges[i]
+                angle = angles[i]
 
-        for i in range(len(ranges)):
-            scan_range = ranges[i]
-            angle = angles[i]
+                if scan_range < (scan_data['range_max'] - 0.1):
+                    # 激光雷达坐标系下的点
+                    point = np.array([[scan_range * np.cos(angle)], [scan_range * np.sin(angle)]])
+                    point_list.append(point)
 
-            if scan_range < ( scan_data['range_max'] - 0.1):
-                point = np.array([ [scan_range * np.cos(angle)], [scan_range * np.sin(angle)]  ])
-                point_list.append(point)
+            if len(point_list) < 5:  # 拟合椭圆至少需要5个点
+                return obstacle_list, center_list
 
-        if len(point_list) < 4:
-            return obstacle_list, center_list
+            else:
+                point_array = np.hstack(point_list).T
+                # 使用 DBSCAN 聚类
+                labels = DBSCAN(eps=0.2, min_samples=3).fit_predict(point_array)
 
-        else:
-            point_array = np.hstack(point_list).T
-            labels = DBSCAN(eps=0.2, min_samples=2).fit_predict(point_array)
-
-            for label in np.unique(labels):
-                if label == -1:
-                    continue
-                else:
+                for label in np.unique(labels):
+                    if label == -1:
+                        continue
+                    
                     point_array2 = point_array[labels == label]
-                    rect = cv2.minAreaRect(point_array2.astype(np.float32))
-                    box = cv2.boxPoints(rect)
-                    center_local = np.array(rect[0]).reshape(2, 1)
+                    
+                    # 拟合椭圆需要至少 5 个非共线点
+                    if len(point_array2) < 5:
+                        continue
 
-                    vertices = box.T
+                    # 1. 拟合局部坐标系下的椭圆
+                    # ellipse 返回格式: ((中心x, 中心y), (长短轴直径w, h), 旋转角度deg)
+                    ellipse = cv2.fitEllipse(point_array2.astype(np.float32))
+                    (lc_x, lc_y), (w, h), angle_deg = ellipse
 
-                    trans = state[0:2]
-                    rot = state[2, 0]
-                    R = np.array([[np.cos(rot), -np.sin(rot)], [np.sin(rot), np.cos(rot)]])
-                    global_vertices = trans + R @ vertices
+                    # 2. 坐标变换：从机器人局部坐标系转到全局坐标系
+                    trans = state[0:2] # [x, y]
+                    rot = state[2, 0]  # theta
+                    R = np.array([[np.cos(rot), -np.sin(rot)], 
+                                [np.sin(rot),  np.cos(rot)]])
+
+                    # 转换中心点
+                    center_local = np.array([[lc_x], [lc_y]])
                     center_global = trans + R @ center_local
 
-                    obstacle_list.append(global_vertices)
-                    center_list.append(center_global)
+                    # 转换旋转角 (OpenCV 角度是顺时针，需注意与机器人坐标系的映射)
+                    # 全局角度 = 局部椭圆角度 + 机器人当前朝向
+                    angle_rad = np.deg2rad(angle_deg) + rot
 
-            return obstacle_list, center_list
+                    obs_a = max(w / 2.0, 0.05)
+                    obs_b = max(h / 2.0, 0.05)
+                    
+                    # --- 预计算三角函数 ---
+                    cos_ot = np.cos(angle_rad)
+                    sin_ot = np.sin(angle_rad)
+                    
+                    # 扩展返回参数：[cx, cy, a, b, theta, cos_theta, sin_theta]
+                    ellipse_params = [
+                        center_global[0, 0], 
+                        center_global[1, 0], 
+                        obs_a, 
+                        obs_b, 
+                        angle_rad,
+                        cos_ot,
+                        sin_ot
+                    ]
+                    center_list.append(ellipse_params)
+
+                    # 4. 为了可视化，仍然可以计算矩形顶点（用于 draw_box）
+                    rect = cv2.minAreaRect(point_array2.astype(np.float32))
+                    box = cv2.boxPoints(rect)
+                    global_vertices = trans + R @ box.T
+                    obstacle_list.append(global_vertices)
+
+                return obstacle_list, center_list
