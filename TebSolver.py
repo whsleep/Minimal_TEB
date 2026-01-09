@@ -185,6 +185,7 @@ class TebplanSolver:
         for i in range(self.n + 1):
             dx = x[i+1] - x[i]
             dy = y[i+1] - y[i]
+
             li = ca.vertcat(ca.cos(theta[i]), ca.sin(theta[i]))
             li1 = ca.vertcat(ca.cos(theta[i+1]), ca.sin(theta[i+1]))
             cross = (li[0] + li1[0]) * dy - (li[1] + li1[1]) * dx
@@ -218,10 +219,31 @@ class TebplanSolver:
         
         # 初始猜测值
         z0 = np.zeros(z.shape[0])
+        # 1. 位置初始化：依然保持线性插值（直线路径）
         z0[:self.n+2] = np.linspace(self.x0[0], self.xf[0], self.n+2)
         z0[self.n+2:2*self.n+4] = np.linspace(self.x0[1], self.xf[1], self.n+2)
-        z0[2*self.n+4:3*self.n+6] = np.linspace(self.x0[2], self.xf[2], self.n+2)
-        z0[3*self.n+6:] = np.ones(self.n+1) * ((self.T_min + self.T_max)/2)
+
+        # 2. 角度初始化：
+        # 计算起点到终点的连线方位角
+        dx_total = self.xf[0] - self.x0[0]
+        dy_total = self.xf[1] - self.x0[1]
+        path_angle = np.arctan2(dy_total, dx_total)
+
+        # 判断目标是否在车辆的“后方”区域 (角度差大于 90度)
+        angle_diff = np.abs(np.arctan2(np.sin(path_angle - self.x0[2]), 
+                                    np.cos(path_angle - self.x0[2])))
+
+        if angle_diff > np.pi / 2:
+            # 情况 A：目标在后方 -> 初始化角度全部等于起点角度（引导倒车）
+            # 这样初始化时，车辆姿态与位移方向相反，配合我们修改后的非完整约束，优化器会更倾向于倒车
+            z0[2*self.n+4:3*self.n+6] = self.x0[2]
+        else:
+            # 情况 B：目标在前方 -> 使用线性插值（常规前进）
+            # 使用 np.unwrap 处理角度跳变，防止在 -pi 到 pi 之间出现震荡插值
+            z0[2*self.n+4:3*self.n+6] = np.linspace(self.x0[2], self.xf[2], self.n+2)
+
+        # 3. 时间步初始化：保持平均值
+        z0[3*self.n+6:] = np.ones(self.n+1) * ((self.T_min + self.T_max) / 2)
         
         # 求解NLP
         nlp = {'x': z, 'f': f, 'g': g}

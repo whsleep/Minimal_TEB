@@ -11,8 +11,8 @@ world:
 robot:
   - kinematics: {name: 'diff'} 
     shape: {name: 'rectangle', length: 0.4, width: 0.3 , wheelbase: 0}
-    state: [1.5, 8.5, 0] 
-    goal: [8.5, 1.5, 0] 
+    state: [8.5, 1.5, 0] 
+    goal: [1.5, 8.5, 0] 
     vel_min: [-1.5, -1.5]
     vel_max: [1.5, 1.5]
     goal_threshold: 0.1
