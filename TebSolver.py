@@ -217,33 +217,16 @@ class TebplanSolver:
         lbx[dt_start_idx:] = self.T_min
         ubx[dt_start_idx:] = self.T_max
         
-        # 初始猜测值
+        # 获取样条曲线初始化值
+        init_x, init_y, init_theta = self._get_spline_initial_guess()
+
         z0 = np.zeros(z.shape[0])
-        # 1. 位置初始化：依然保持线性插值（直线路径）
-        z0[:self.n+2] = np.linspace(self.x0[0], self.xf[0], self.n+2)
-        z0[self.n+2:2*self.n+4] = np.linspace(self.x0[1], self.xf[1], self.n+2)
+        z0[:self.n+2] = init_x
+        z0[self.n+2:2*self.n+4] = init_y
+        z0[2*self.n+4:3*self.n+6] = init_theta
 
-        # 2. 角度初始化：
-        # 计算起点到终点的连线方位角
-        dx_total = self.xf[0] - self.x0[0]
-        dy_total = self.xf[1] - self.x0[1]
-        path_angle = np.arctan2(dy_total, dx_total)
-
-        # 判断目标是否在车辆的“后方”区域 (角度差大于 90度)
-        angle_diff = np.abs(np.arctan2(np.sin(path_angle - self.x0[2]), 
-                                    np.cos(path_angle - self.x0[2])))
-
-        if angle_diff > np.pi / 2:
-            # 情况 A：目标在后方 -> 初始化角度全部等于起点角度（引导倒车）
-            # 这样初始化时，车辆姿态与位移方向相反，配合我们修改后的非完整约束，优化器会更倾向于倒车
-            z0[2*self.n+4:3*self.n+6] = self.x0[2]
-        else:
-            # 情况 B：目标在前方 -> 使用线性插值（常规前进）
-            # 使用 np.unwrap 处理角度跳变，防止在 -pi 到 pi 之间出现震荡插值
-            z0[2*self.n+4:3*self.n+6] = np.linspace(self.x0[2], self.xf[2], self.n+2)
-
-        # 3. 时间步初始化：保持平均值
-        z0[3*self.n+6:] = np.ones(self.n+1) * ((self.T_min + self.T_max) / 2)
+        # 时间步初始化
+        z0[3*self.n+6:] = np.ones(self.n+1) * ((self.T_min + self.T_max)/2)
         
         # 求解NLP
         nlp = {'x': z, 'f': f, 'g': g}
@@ -252,6 +235,53 @@ class TebplanSolver:
         res = solver(x0=z0, lbg=lbg, ubg=ubg, lbx=lbx, ubx=ubx)
         return res
     
+    def _get_spline_initial_guess(self):
+        """使用三次埃尔米特样条生成平滑的初始猜测轨迹"""
+        n_points = self.n + 2
+        t = np.linspace(0, 1, n_points)
+        
+        # 计算起点和终点的切线向量 (方向由 theta 决定)
+        # 这里的 scale 决定了曲线的“张力”，通常取位移距离的一半
+        dist = np.linalg.norm(self.xf[:2] - self.x0[:2])
+        scale = dist * 0.5 
+        
+        v0 = np.array([np.cos(self.x0[2]), np.sin(self.x0[2])]) * scale
+        vf = np.array([np.cos(self.xf[2]), np.sin(self.xf[2])]) * scale
+        
+        p0 = self.x0[:2]
+        pf = self.xf[:2]
+        
+        # 三次埃尔米特样条基函数
+        h00 = 2*t**3 - 3*t**2 + 1
+        h10 = t**3 - 2*t**2 + t
+        h01 = -2*t**3 + 3*t**2
+        h11 = t**3 - t**2
+        
+        # 生成位置插值 (n_points, 2)
+        path_xy = (np.outer(h00, p0) + np.outer(h10, v0) + 
+                np.outer(h01, pf) + np.outer(h11, vf))
+        
+        # 生成角度插值：通过路径的切向计算 theta
+        # 计算路径上每一点的导数（速度矢量）
+        dh00 = 6*t**2 - 6*t
+        dh10 = 3*t**2 - 4*t + 1
+        dh01 = -6*t**2 + 6*t
+        dh11 = 3*t**2 - 2*t
+        
+        path_v = (np.outer(dh00, p0) + np.outer(dh10, v0) + 
+                np.outer(dh01, pf) + np.outer(dh11, vf))
+        
+        path_theta = np.arctan2(path_v[:, 1], path_v[:, 0])
+        
+        # 修正：样条生成的 theta 在起点和终点必须严格等于设定值
+        path_theta[0] = self.x0[2]
+        path_theta[-1] = self.xf[2]
+        
+        # 处理角度突变 (unwrap) 确保插值平滑
+        path_theta = np.unwrap(path_theta)
+        
+        return path_xy[:, 0], path_xy[:, 1], path_theta
+
     def _extract_trajectory(self, res):
         """从求解结果中提取轨迹（包含位置、姿态和时间差序列）"""
         # 提取位置和姿态
